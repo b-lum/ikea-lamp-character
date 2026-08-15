@@ -28,11 +28,13 @@ same file's joint position *and velocity* limits on every 30 Hz tick.
 
 ## Protocol
 
-JSON over one WebSocket, one direction (body = display, no state upstream):
-`robot` (once, URDF-derived description), `state` (30 Hz: joint positions,
-root hop offset, light color/intensity), `hud` (behavior state + captions).
-The same protocol could drive a physics sim or firmware; the viewer is
-swappable.
+JSON over one WebSocket. Downstream (authoritative state): `robot` (once,
+URDF-derived description), `state` (30 Hz: joint positions, root hop offset,
+light color/intensity), `hud` (behavior state + captions), `camera` (5 Hz
+annotated webcam PiP). Upstream, exactly one event: `viewpoint` — the orbit
+camera's azimuth, which the character treats as "where the audience window
+is" and turns toward (through real joints, still limit-clamped). The same
+protocol could drive a physics sim or firmware; the viewer is swappable.
 
 ## Model-to-action (the VLA boundary)
 

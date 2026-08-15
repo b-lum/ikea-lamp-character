@@ -192,7 +192,10 @@ class Character:
                 self.animator.gaze_enabled = True
                 s = self.perception.state
                 if s.engaged:
-                    self.animator.set_gaze(-0.55 * s.face_x, 0.35 * s.face_y)
+                    # webcam-space face tracking + turn toward the viewer's
+                    # orbit viewpoint (the character faces its audience window)
+                    yaw = -0.55 * s.face_x + self.server.viewpoint["azimuth"]
+                    self.animator.set_gaze(yaw, 0.35 * s.face_y)
             await asyncio.sleep(0.1)
 
     async def _camera_pip_task(self) -> None:

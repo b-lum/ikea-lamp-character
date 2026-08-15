@@ -11,6 +11,13 @@ Protocol (server -> viewer):
    "light": {"color": [r,g,b], "intensity": f}}
   {"type": "hud", "state": str,             on change: behavior state + captions
    "caption": str, "speaker": str}
+  {"type": "camera", "data": b64-jpeg}      ~5 Hz: annotated webcam PiP
+
+Protocol (viewer -> server), the one upstream event:
+  {"type": "viewpoint", "azimuth": rad}     orbit-camera azimuth in the robot's
+                                            frame; the character treats the
+                                            viewport as where its audience is
+                                            and turns (within joint limits).
 """
 from __future__ import annotations
 
@@ -31,6 +38,7 @@ class BodyServer:
         self.robot_description = robot_description
         self.host, self.port = host, port
         self.clients: set[web.WebSocketResponse] = set()
+        self.viewpoint = {"azimuth": 0.0}
         self._last_hud: dict | None = None
 
     async def start(self) -> None:
@@ -58,7 +66,14 @@ class BodyServer:
         log.info("viewer connected (%d total)", len(self.clients))
         try:
             async for msg in ws:
-                if msg.type in (WSMsgType.ERROR, WSMsgType.CLOSE):
+                if msg.type == WSMsgType.TEXT:
+                    try:
+                        data = json.loads(msg.data)
+                        if data.get("type") == "viewpoint":
+                            self.viewpoint["azimuth"] = float(data.get("azimuth", 0.0))
+                    except (ValueError, TypeError):
+                        pass
+                elif msg.type in (WSMsgType.ERROR, WSMsgType.CLOSE):
                     break
         finally:
             self.clients.discard(ws)

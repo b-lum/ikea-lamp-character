@@ -315,6 +315,21 @@ function applyState(msg) {
   }
 }
 
+// ---------- viewpoint upstream: tell the character where its audience is ----------
+let sock = null;
+let _lastAz = null, _lastAzT = 0;
+function sendViewpoint() {
+  if (!sock || sock.readyState !== WebSocket.OPEN) return;
+  // camera azimuth around the lamp in the robot's (URDF, z-up) frame
+  const dx = camera.position.x - controls.target.x;
+  const dz = camera.position.z - controls.target.z;
+  const azimuth = Math.atan2(-dz, dx); // three +Z == URDF -Y
+  const now = performance.now();
+  if (_lastAz !== null && Math.abs(azimuth - _lastAz) < 0.02 && now - _lastAzT < 500) return;
+  _lastAz = azimuth; _lastAzT = now;
+  sock.send(JSON.stringify({ type: 'viewpoint', azimuth }));
+}
+
 const _q = new THREE.Quaternion();
 let lastT = performance.now();
 function animate() {
@@ -353,6 +368,7 @@ function animate() {
     }
   }
   controls.update();
+  sendViewpoint();
   renderer.render(scene, camera);
 }
 animate();
@@ -387,7 +403,8 @@ function applyHud(msg) {
 // ---------- websocket ----------
 function connect() {
   const ws = new WebSocket(`ws://${location.host}/ws`);
-  ws.onopen = () => { conn.textContent = 'connected'; };
+  sock = ws;
+  ws.onopen = () => { conn.textContent = 'connected'; _lastAz = null; sendViewpoint(); };
   ws.onmessage = (ev) => {
     const msg = JSON.parse(ev.data);
     if (msg.type === 'robot' && !Object.keys(jointNodes).length) buildRobot(msg);
