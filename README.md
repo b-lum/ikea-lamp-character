@@ -5,10 +5,8 @@ Challenge. Lux sees through the laptop camera, listens through the microphone,
 speaks through the speaker, and performs with motion, light, chirps, and music
 in a browser-rendered 3D body driven over WebSocket.
 
-![architecture](docs/architecture.png)
-
-See [docs/TECHNICAL_NOTE.md](docs/TECHNICAL_NOTE.md) for architecture,
-design decisions, and measurements.
+See [docs/TECHNICAL_NOTE.md](docs/TECHNICAL_NOTE.md) for the architecture
+diagram, design decisions, and measurements.
 
 ## What it does
 
