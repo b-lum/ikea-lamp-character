@@ -320,10 +320,12 @@ let sock = null;
 let _lastAz = null, _lastAzT = 0;
 function sendViewpoint() {
   if (!sock || sock.readyState !== WebSocket.OPEN) return;
-  // camera azimuth around the lamp in the robot's (URDF, z-up) frame
+  // gaze yaw that turns the lamp's face toward the orbit camera. The head's
+  // rest direction is base -X (the URDF flips the head gimbal by pi), so the
+  // camera azimuth atan2(-dz, dx) needs a pi offset: az - pi == atan2(dz, -dx).
   const dx = camera.position.x - controls.target.x;
-  const dz = camera.position.z - controls.target.z;
-  const azimuth = Math.atan2(-dz, dx); // three +Z == URDF -Y
+  const dz = camera.position.z - controls.target.z; // three +Z == URDF -Y
+  const azimuth = Math.atan2(dz, -dx);
   const now = performance.now();
   if (_lastAz !== null && Math.abs(azimuth - _lastAz) < 0.02 && now - _lastAzT < 500) return;
   _lastAz = azimuth; _lastAzT = now;
