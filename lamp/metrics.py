@@ -37,4 +37,4 @@ class Metrics:
 
     def dump(self) -> None:
         OUT.write_text(json.dumps({"summary": self.summary(), "samples": self.samples}, indent=1))
-        log.info("metrics: %s", self.summary())
+        log.debug("metrics: %s", self.summary())

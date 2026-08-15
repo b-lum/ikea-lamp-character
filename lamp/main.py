@@ -20,6 +20,8 @@ load_dotenv()
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)-10s %(message)s",
                     datefmt="%H:%M:%S")
+for noisy in ("httpx", "faster_whisper", "anthropic"):
+    logging.getLogger(noisy).setLevel(logging.WARNING)
 log = logging.getLogger("main")
 
 ROOT = Path(__file__).resolve().parent.parent

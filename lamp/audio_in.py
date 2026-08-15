@@ -22,8 +22,8 @@ log = logging.getLogger("hearing")
 
 SR = 16000
 BLOCK = 1600            # 100 ms
-START_RATIO = 3.5       # speech when rms > floor * ratio
-START_MIN_S = 0.2
+START_RATIO = 2.8       # speech when rms > floor * ratio
+START_MIN_S = 0.15
 END_SILENCE_S = 0.8
 MIN_UTTERANCE_S = 0.5
 MAX_UTTERANCE_S = 15.0
@@ -62,6 +62,8 @@ class Hearing:
         self._model = WhisperModel("base.en", device="cpu", compute_type="int8")
         log.info("whisper base.en loaded in %.1fs", time.monotonic() - t0)
 
+        device = sd.query_devices(kind="input")
+        log.info("listening via mic: %s", device["name"])
         stream = sd.InputStream(samplerate=SR, channels=1, dtype="float32",
                                 blocksize=BLOCK, callback=self._callback)
         stream.start()
@@ -98,6 +100,7 @@ class Hearing:
                 if speech_run >= START_MIN_S:
                     in_speech, silence_run = True, 0.0
                     utterance = list(pre_roll)
+                    log.info("speech detected (rms %.4f, floor %.4f) — capturing", rms, noise_floor)
             else:
                 utterance.append(block)
                 silence_run = 0.0 if is_speech else silence_run + block_s
@@ -117,3 +120,6 @@ class Hearing:
         if text:
             log.info("heard (%.2fs stt): %s", self.last_stt_latency, text)
             self.on_utterance(text, len(audio) / SR)
+        else:
+            log.info("captured %.1fs but whisper found no speech — try speaking "
+                     "louder or closer to the mic", len(audio) / SR)
