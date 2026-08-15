@@ -47,6 +47,7 @@ class Perception:
         self.on_event = on_event
         self._camera_index = camera_index
         self._latest_frame: np.ndarray | None = None
+        self._last_box: tuple[int, int, int, int] | None = None
         self._lock = threading.Lock()
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
@@ -71,6 +72,20 @@ class Perception:
         if w > max_w:
             frame = cv2.resize(frame, (max_w, int(h * max_w / w)))
         ok, buf = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, quality])
+        return buf.tobytes() if ok else None
+
+    def annotated_jpeg(self, width: int = 320) -> bytes | None:
+        """Small webcam view with the detected face boxed — for the viewer PiP."""
+        frame = self.latest_frame()
+        if frame is None:
+            return None
+        box = self._last_box
+        if box is not None:
+            x, y, w, h = box
+            color = (110, 220, 255) if self.state.engaged else (140, 140, 140)
+            cv2.rectangle(frame, (x, y), (x + w, y + h), color, 3)
+        frame = cv2.resize(frame, (width, int(FRAME_H * width / FRAME_W)))
+        ok, buf = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 70])
         return buf.tobytes() if ok else None
 
     # ------------------------------------------------------------- thread
@@ -107,6 +122,7 @@ class Perception:
                 best = max(faces, key=lambda f: f[2] * f[3])  # largest by area
             close = best is not None and best[2] / FRAME_W >= MIN_FACE_FRAC
 
+            self._last_box = tuple(int(v) for v in best[:4]) if best is not None else None
             if close:
                 x, y, w, h = (float(v) for v in best[:4])  # numpy -> plain floats
                 cx, cy = (x + w / 2) / FRAME_W, (y + h / 2) / FRAME_H

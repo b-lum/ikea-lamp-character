@@ -393,6 +393,10 @@ function connect() {
     if (msg.type === 'robot' && !Object.keys(jointNodes).length) buildRobot(msg);
     else if (msg.type === 'state') applyState(msg);
     else if (msg.type === 'hud') applyHud(msg);
+    else if (msg.type === 'camera') {
+      document.getElementById('pip').style.display = 'block';
+      document.getElementById('pip-img').src = `data:image/jpeg;base64,${msg.data}`;
+    }
   };
   ws.onclose = () => { conn.textContent = 'offline — retrying'; setTimeout(connect, 1000); };
 }

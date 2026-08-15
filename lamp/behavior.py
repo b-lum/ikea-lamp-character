@@ -195,6 +195,17 @@ class Character:
                     self.animator.set_gaze(-0.55 * s.face_x, 0.35 * s.face_y)
             await asyncio.sleep(0.1)
 
+    async def _camera_pip_task(self) -> None:
+        """Stream a small annotated webcam view so 'what Lux sees' is visible."""
+        import base64
+        while True:
+            if self.server.clients:
+                jpeg = self.perception.annotated_jpeg()
+                if jpeg:
+                    self.server.broadcast({"type": "camera",
+                                           "data": base64.standard_b64encode(jpeg).decode()})
+            await asyncio.sleep(0.2)
+
     async def _metrics_task(self) -> None:
         while True:
             await asyncio.sleep(10)
@@ -207,6 +218,7 @@ class Character:
         self.hearing.start()
         self._hud(state="idle")
         asyncio.create_task(self._gaze_task())
+        asyncio.create_task(self._camera_pip_task())
         asyncio.create_task(self._metrics_task())
         log.info("character alive — waiting for a face")
 

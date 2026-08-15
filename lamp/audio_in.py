@@ -22,7 +22,7 @@ log = logging.getLogger("hearing")
 
 SR = 16000
 BLOCK = 1600            # 100 ms
-START_RATIO = 2.8       # speech when rms > floor * ratio
+START_RATIO = 2.2       # speech when rms > floor * ratio
 START_MIN_S = 0.15
 END_SILENCE_S = 0.8
 MIN_UTTERANCE_S = 0.5
@@ -113,6 +113,9 @@ class Hearing:
 
     def _transcribe(self, audio: np.ndarray) -> None:
         t0 = time.monotonic()
+        peak = float(np.abs(audio).max())
+        if peak > 1e-4:  # auto-gain: laptop mics run quiet; whisper likes ~full-scale
+            audio = np.clip(audio * min(0.9 / peak, 20.0), -1.0, 1.0)
         segments, _info = self._model.transcribe(audio, language="en", beam_size=1,
                                                  vad_filter=True)
         text = " ".join(s.text.strip() for s in segments).strip()
