@@ -130,5 +130,5 @@ class Perception:
                     if self.on_event:
                         self.on_event("disengaged")
 
-            time.sleep(0.03)  # ~15-20 fps effective; plenty for engagement
+            time.sleep(0.06)  # ~10 fps: engagement + gaze stay smooth at half the CPU
         cap.release()
