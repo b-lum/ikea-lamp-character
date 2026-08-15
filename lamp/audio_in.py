@@ -25,7 +25,10 @@ log = logging.getLogger("hearing")
 SR = 16000
 BLOCK = 1600            # 100 ms
 START_RATIO = 1.6       # speech when rms > floor * ratio
-FLOOR_MAX = 0.02        # never let the adaptive floor exceed a quiet-room level
+FLOOR_DOWN_RATE = 0.05  # floor falls fast when the room quiets down
+FLOOR_UP_RATE = 0.005   # ...and rises slowly through sustained noise (fans,
+                        # music bed), so a few seconds of speech can't inflate
+                        # it but a real ambient change is absorbed in ~20-30 s
 START_MIN_S = 0.15
 END_SILENCE_S = 0.8
 MIN_UTTERANCE_S = 0.5
@@ -118,10 +121,10 @@ class Hearing:
             self.level = max(0.0, min(1.0, (rms - noise_floor) / (noise_floor * 6 + 1e-6)))
             self.speech = in_speech
 
-            # adapt the floor only on genuinely quiet blocks — otherwise talking
-            # without triggering inflates the floor and the trigger recedes
-            if not in_speech and rms < noise_floor * 1.5:
-                noise_floor = min(0.98 * noise_floor + 0.02 * max(rms, 1e-4), FLOOR_MAX)
+            # asymmetric floor adaptation (never during captured speech)
+            if not in_speech:
+                rate = FLOOR_DOWN_RATE if rms < noise_floor else FLOOR_UP_RATE
+                noise_floor = (1 - rate) * noise_floor + rate * max(rms, 1e-4)
 
             if not self.enabled:
                 pre_roll.append(block)

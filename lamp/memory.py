@@ -30,7 +30,9 @@ class SceneMemory:
         self.items.append({"name": name, "description": description,
                            "position": position, "t": time.time()})
         self.items = self.items[-MAX_ITEMS:]
-        STORE.write_text(json.dumps(self.items, indent=1))
+        tmp = STORE.with_suffix(".json.tmp")  # atomic: a crash mid-write can't
+        tmp.write_text(json.dumps(self.items, indent=1))  # truncate the store
+        tmp.replace(STORE)
 
     def summary(self) -> str:
         if not self.items:

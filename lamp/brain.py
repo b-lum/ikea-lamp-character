@@ -111,21 +111,25 @@ class Brain:
             context += f"\n[context] {extra_context}"
         content.append({"type": "text", "text": f"{context}\n\n[person says] {user_text}"})
 
-        self.history.append({"role": "user", "content": content})
-        self.history = self.history[-MAX_HISTORY_TURNS * 2:]
+        # build the candidate message list; commit to history only on success,
+        # so a failed API call can't leave an un-paired user turn behind
+        messages = (self.history + [{"role": "user", "content": content}])[-MAX_HISTORY_TURNS * 2:]
 
         t0 = time.monotonic()
         response = await self.client.messages.create(
             model=MODEL,
-            max_tokens=600,
+            max_tokens=1000,
             system=[{"type": "text", "text": SYSTEM, "cache_control": {"type": "ephemeral"}}],
             tools=[ACT_TOOL],
             tool_choice={"type": "tool", "name": "act"},
-            messages=self.history,
+            messages=messages,
         )
         self.last_latency = time.monotonic() - t0
 
-        action = next(b.input for b in response.content if b.type == "tool_use")
+        action = next((b.input for b in response.content if b.type == "tool_use"), None)
+        if action is None:
+            raise RuntimeError(f"no tool call in response (stop_reason={response.stop_reason})")
+        self.history = messages
         # keep history text-only: replayed images would balloon tokens/latency
         self.history[-1] = {"role": "user", "content": f"[person says] {user_text}"}
         self.history.append({"role": "assistant",

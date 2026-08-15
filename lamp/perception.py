@@ -101,6 +101,10 @@ class Perception:
 
     # ------------------------------------------------------------- thread
     def _run(self) -> None:
+        # bind the stop event locally: restart() swaps self._stop for the new
+        # thread, and the old thread must keep honoring the (set) event it
+        # started with even if it was blocked in cap.read() past the join
+        stop = self._stop
         cap = cv2.VideoCapture(self._camera_index)
         cap.set(cv2.CAP_PROP_FRAME_WIDTH, FRAME_W)
         cap.set(cv2.CAP_PROP_FRAME_HEIGHT, FRAME_H)
@@ -113,7 +117,7 @@ class Perception:
 
         face_since = face_lost_since = None
         t_prev = time.monotonic()
-        while not self._stop.is_set():
+        while not stop.is_set():
             ok, frame = cap.read()
             if not ok:
                 time.sleep(0.1)

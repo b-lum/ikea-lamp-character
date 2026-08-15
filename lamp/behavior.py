@@ -55,7 +55,7 @@ class Character:
         self.events: asyncio.Queue = asyncio.Queue()
         self._loop = asyncio.get_event_loop()
         self._pointing_until = 0.0
-        self._busy = False
+        self._tasks: list[asyncio.Task] = []  # keep refs: bare tasks can be GC'd
 
         self.perception = Perception(camera_index=dev_cfg.get("camera", 0),
                                      on_event=self._thread_event)
@@ -168,14 +168,17 @@ class Character:
         self.animator.set_light(intensity=0.05)
         self.animator.play("sleep")
 
+    async def _snapshot(self) -> bytes | None:
+        # cv2 resize+encode is sync CPU work — keep it off the event loop
+        return await self._loop.run_in_executor(None, self.perception.snapshot_jpeg)
+
     async def _handle_utterance(self, text: str) -> None:
-        self._busy = True
         try:
             self._hud(state="thinking", caption=text, speaker="you")
             self.animator.play("thinking")
             self.animator.set_light(pulse_hz=1.2, pulse_depth=0.5)
             t0 = time.monotonic()
-            action = await self.brain.act(text, self.perception.snapshot_jpeg(),
+            action = await self.brain.act(text, await self._snapshot(),
                                           self.memory.summary())
             self.metrics.record("llm_latency", self.brain.last_latency)
             self._hud(state="responding")
@@ -191,7 +194,7 @@ class Character:
                 self._hud(state="verifying")
                 action = await self.brain.act(
                     "(no speech — this is your follow-up look at the scene)",
-                    self.perception.snapshot_jpeg(), self.memory.summary(),
+                    await self._snapshot(), self.memory.summary(),
                     extra_context="You just moved. Check the new snapshot: is your "
                                   "head/light aimed at the target? If yes set "
                                   "goal_complete=true and celebrate briefly; if not, "
@@ -206,8 +209,6 @@ class Character:
             self.audio.play_sfx("sad")
             await self._speak("Oh no, my thoughts flickered. Say that again?")
             self._hud(state="listening")
-        finally:
-            self._busy = False
 
     # ---------- tasks ----------
     async def _gaze_task(self) -> None:
@@ -227,7 +228,7 @@ class Character:
         import base64
         while True:
             if self.server.clients:
-                jpeg = self.perception.annotated_jpeg()
+                jpeg = await self._loop.run_in_executor(None, self.perception.annotated_jpeg)
                 if jpeg:
                     self.server.broadcast({"type": "camera",
                                            "data": base64.standard_b64encode(jpeg).decode(),
@@ -246,9 +247,8 @@ class Character:
         self.perception.start()
         self.hearing.start()
         self._hud(state="idle")
-        asyncio.create_task(self._gaze_task())
-        asyncio.create_task(self._camera_pip_task())
-        asyncio.create_task(self._metrics_task())
+        self._tasks = [asyncio.create_task(t()) for t in
+                       (self._gaze_task, self._camera_pip_task, self._metrics_task)]
         log.info("character alive — waiting for a face")
 
         while True:
@@ -256,7 +256,6 @@ class Character:
             if kind == "face" and payload == "engaged" and self.state == "asleep":
                 await self._engage()
             elif kind == "face" and payload == "disengaged" and self.state == "engaged":
-                if not self._busy:
-                    await self._disengage()
+                await self._disengage()
             elif kind == "utterance" and self.state == "engaged":
                 await self._handle_utterance(payload)
