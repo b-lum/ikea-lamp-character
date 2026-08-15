@@ -10,9 +10,13 @@ import asyncio
 import logging
 from pathlib import Path
 
+from dotenv import load_dotenv
+
 from . import urdf
 from .body_server import BodyServer
 from .motion import Animator, PERFORMANCES
+
+load_dotenv()
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)-10s %(message)s",
                     datefmt="%H:%M:%S")
