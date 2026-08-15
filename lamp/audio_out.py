@@ -102,9 +102,10 @@ def build_music_loop() -> np.ndarray:
 
 # ------------------------------------------------------------------ mixer
 class AudioOut:
-    def __init__(self):
+    def __init__(self, device: int | None = None):
         self.sfx = build_sfx()
         self.music = build_music_loop()
+        self.device = device          # None = system default
         self._music_pos = 0
         self.music_on = False
         self._music_gain = 0.0        # smoothed toward _music_target
@@ -112,11 +113,32 @@ class AudioOut:
         self._active: list[list] = []  # [array, position]
         self._lock = threading.Lock()
         self._speaking = threading.Event()
-        self._stream = sd.OutputStream(samplerate=SR, channels=1, dtype="float32",
-                                       blocksize=1024, callback=self._callback)
-        self._stream.start()
+        self._stream = None
+        self._open_stream()
         self._tts_backend = self._pick_tts()
         log.info("audio out ready (tts=%s)", self._tts_backend)
+
+    def _open_stream(self) -> None:
+        try:
+            self._stream = sd.OutputStream(samplerate=SR, channels=1, dtype="float32",
+                                           blocksize=1024, device=self.device,
+                                           callback=self._callback)
+            self._stream.start()
+        except Exception as e:
+            log.error("speaker open failed (device=%s): %s — using default", self.device, e)
+            self.device = None
+            self._stream = sd.OutputStream(samplerate=SR, channels=1, dtype="float32",
+                                           blocksize=1024, callback=self._callback)
+            self._stream.start()
+
+    def set_device(self, device: int | None) -> None:
+        old = self._stream
+        self.device = device
+        self._open_stream()
+        if old is not None:
+            old.stop()
+            old.close()
+        log.info("speaker switched to device %s", device)
 
     def _pick_tts(self) -> str:
         if platform.system() == "Darwin" and shutil.which("say"):
@@ -156,7 +178,10 @@ class AudioOut:
         self._speaking.set()
         try:
             if self._tts_backend == "say":
-                subprocess.run(["say", "-v", "Samantha", "-r", "178", text], check=False)
+                cmd = ["say", "-v", "Samantha", "-r", "178"]
+                if self.device is not None:  # route TTS to the chosen speaker too
+                    cmd += ["-a", sd.query_devices(self.device)["name"]]
+                subprocess.run(cmd + [text], check=False)
             elif self._tts_backend == "piper":
                 subprocess.run(
                     "piper --model /usr/local/share/piper/en_US-amy-medium.onnx "

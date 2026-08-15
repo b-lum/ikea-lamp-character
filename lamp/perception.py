@@ -59,6 +59,17 @@ class Perception:
     def stop(self) -> None:
         self._stop.set()
 
+    def restart(self, camera_index: int) -> None:
+        """Switch camera live: stop the capture thread and start a new one."""
+        self._stop.set()
+        if self._thread:
+            self._thread.join(timeout=3)
+        self._camera_index = camera_index
+        self._stop = threading.Event()
+        self.state.engaged = False
+        self.start()
+        log.info("camera switched to index %d", camera_index)
+
     def latest_frame(self) -> np.ndarray | None:
         """Most recent BGR frame (for brain snapshots)."""
         with self._lock:

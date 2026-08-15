@@ -19,6 +19,7 @@ import asyncio
 import logging
 import time
 
+from . import devices
 from .audio_in import Hearing
 from .audio_out import AudioOut
 from .brain import Brain
@@ -48,16 +49,21 @@ class Character:
         self.memory = SceneMemory()
         self.brain = Brain()
         self.metrics = Metrics()
-        self.audio = AudioOut()
+        dev_cfg = devices.load()
+        self.audio = AudioOut(device=dev_cfg.get("audio_out"))
         self.state = "asleep"
         self.events: asyncio.Queue = asyncio.Queue()
         self._loop = asyncio.get_event_loop()
         self._pointing_until = 0.0
         self._busy = False
 
-        self.perception = Perception(on_event=self._thread_event)
+        self.perception = Perception(camera_index=dev_cfg.get("camera", 0),
+                                     on_event=self._thread_event)
         self.hearing = Hearing(on_utterance=self._thread_utterance,
-                               is_self_speaking=self.audio._speaking.is_set)
+                               is_self_speaking=self.audio._speaking.is_set,
+                               device=dev_cfg.get("audio_in"))
+        server.get_devices = self._get_devices
+        server.set_devices = self._set_devices
 
     # ---------- thread -> asyncio bridges ----------
     def _thread_event(self, name: str) -> None:
@@ -66,6 +72,24 @@ class Character:
     def _thread_utterance(self, text: str, seconds: float) -> None:
         self.metrics.record("stt_latency", self.hearing.last_stt_latency)
         self._loop.call_soon_threadsafe(self.events.put_nowait, ("utterance", text))
+
+    # ---------- device selection (viewer settings panel) ----------
+    async def _get_devices(self) -> dict:
+        return await self._loop.run_in_executor(
+            None, devices.snapshot, self.perception, self.hearing, self.audio)
+
+    async def _set_devices(self, body: dict) -> None:
+        cfg = devices.load()
+        if "camera" in body:
+            cfg["camera"] = int(body["camera"])
+            await self._loop.run_in_executor(None, self.perception.restart, cfg["camera"])
+        if "audio_in" in body:
+            cfg["audio_in"] = int(body["audio_in"])
+            self.hearing.set_device(cfg["audio_in"])
+        if "audio_out" in body:
+            cfg["audio_out"] = int(body["audio_out"])
+            await self._loop.run_in_executor(None, self.audio.set_device, cfg["audio_out"])
+        devices.save(cfg)
 
     # ---------- helpers ----------
     def _hud(self, state: str | None = None, caption: str = "", speaker: str = "") -> None:

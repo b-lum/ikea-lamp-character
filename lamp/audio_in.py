@@ -5,8 +5,10 @@ raw microphone audio never leaves the machine; only the transcribed text is
 later sent to the language model.
 
 The energy VAD tracks an adaptive noise floor, so it works across rooms
-without tuning. While the character itself is speaking, capture is gated off
-to stop it from transcribing its own voice through the laptop speakers.
+without tuning; captured utterances are gain-normalized before Whisper.
+While the character itself is speaking, capture is gated off to stop it from
+transcribing its own voice through the laptop speakers. The input device can
+be switched live via set_device().
 """
 from __future__ import annotations
 
@@ -31,16 +33,18 @@ PRE_ROLL_BLOCKS = 3     # keep 300 ms before trigger so first word isn't clipped
 
 
 class Hearing:
-    def __init__(self, on_utterance, is_self_speaking=lambda: False):
+    def __init__(self, on_utterance, is_self_speaking=lambda: False, device: int | None = None):
         """on_utterance(text, seconds) called from worker thread.
         is_self_speaking() gates capture during TTS playback."""
         self.on_utterance = on_utterance
         self.is_self_speaking = is_self_speaking
         self.enabled = False       # behavior engine opens/closes the ears
+        self.device = device       # None = system default
         self.last_stt_latency = 0.0
         self._blocks: deque[np.ndarray] = deque()
         self._cv = threading.Condition()
         self._stop = threading.Event()
+        self._reopen = threading.Event()
         self._model = None
 
     def start(self) -> None:
@@ -48,6 +52,14 @@ class Hearing:
 
     def stop(self) -> None:
         self._stop.set()
+        with self._cv:
+            self._cv.notify()
+
+    def set_device(self, device: int | None) -> None:
+        self.device = device
+        self._reopen.set()
+        with self._cv:
+            self._cv.notify()
 
     def _callback(self, indata: np.ndarray, _frames, _time, _status) -> None:
         if self.is_self_speaking():
@@ -62,23 +74,40 @@ class Hearing:
         self._model = WhisperModel("base.en", device="cpu", compute_type="int8")
         log.info("whisper base.en loaded in %.1fs", time.monotonic() - t0)
 
-        device = sd.query_devices(kind="input")
-        log.info("listening via mic: %s", device["name"])
-        stream = sd.InputStream(samplerate=SR, channels=1, dtype="float32",
-                                blocksize=BLOCK, callback=self._callback)
-        stream.start()
+        while not self._stop.is_set():
+            try:
+                stream = sd.InputStream(samplerate=SR, channels=1, dtype="float32",
+                                        blocksize=BLOCK, device=self.device,
+                                        callback=self._callback)
+                stream.start()
+            except Exception as e:
+                log.error("mic open failed (device=%s): %s — falling back to default",
+                          self.device, e)
+                self.device = None
+                time.sleep(1)
+                continue
+            name = sd.query_devices(self.device if self.device is not None else None,
+                                    kind="input")["name"]
+            log.info("listening via mic: %s", name)
+            self._reopen.clear()
+            with self._cv:
+                self._blocks.clear()
+            self._capture_loop()
+            stream.stop()
+            stream.close()
 
+    def _capture_loop(self) -> None:
         noise_floor = 0.01
         pre_roll: deque[np.ndarray] = deque(maxlen=PRE_ROLL_BLOCKS)
         utterance: list[np.ndarray] = []
         speech_run = silence_run = 0.0
         in_speech = False
 
-        while not self._stop.is_set():
+        while not self._stop.is_set() and not self._reopen.is_set():
             with self._cv:
                 while not self._blocks:
                     self._cv.wait(timeout=0.5)
-                    if self._stop.is_set():
+                    if self._stop.is_set() or self._reopen.is_set():
                         return
                 block = self._blocks.popleft()
             rms = float(np.sqrt(np.mean(block ** 2)))

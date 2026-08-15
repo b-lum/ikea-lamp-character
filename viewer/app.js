@@ -400,6 +400,59 @@ function applyHud(msg) {
   }
 }
 
+// ---------- device settings panel ----------
+const gear = document.getElementById('gear');
+const settings = document.getElementById('settings');
+
+async function setDevice(kind, index) {
+  await fetch('/devices', { method: 'POST', headers: { 'content-type': 'application/json' },
+                            body: JSON.stringify({ [kind]: index }) });
+  loadDevices();
+}
+
+async function loadDevices() {
+  const camsEl = document.getElementById('cams');
+  camsEl.textContent = 'scanning…';
+  let d;
+  try {
+    const res = await fetch('/devices');
+    if (!res.ok) throw new Error();
+    d = await res.json();
+  } catch {
+    camsEl.textContent = 'unavailable (demo mode)';
+    return;
+  }
+  camsEl.innerHTML = '';
+  for (const cam of d.cameras) {
+    const div = document.createElement('div');
+    div.className = 'cam' + (cam.current ? ' current' : '');
+    div.innerHTML = cam.thumb ? `<img src="data:image/jpeg;base64,${cam.thumb}">`
+                              : `<img alt="camera ${cam.index}">`;
+    div.title = `camera ${cam.index}`;
+    div.onclick = () => setDevice('camera', cam.index);
+    camsEl.appendChild(div);
+  }
+  for (const [id, list] of [['mic', d.audio_in], ['spk', d.audio_out]]) {
+    const sel = document.getElementById(id);
+    sel.innerHTML = '';
+    for (const dev of list) {
+      const opt = document.createElement('option');
+      opt.value = dev.index;
+      opt.textContent = dev.name;
+      opt.selected = dev.current;
+      sel.appendChild(opt);
+    }
+    sel.onchange = () => setDevice(id === 'mic' ? 'audio_in' : 'audio_out',
+                                   parseInt(sel.value, 10));
+  }
+}
+
+gear.onclick = () => {
+  const open = settings.style.display === 'block';
+  settings.style.display = open ? 'none' : 'block';
+  if (!open) loadDevices();
+};
+
 // ---------- websocket ----------
 function connect() {
   const ws = new WebSocket(`ws://${location.host}/ws`);

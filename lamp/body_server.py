@@ -40,10 +40,15 @@ class BodyServer:
         self.clients: set[web.WebSocketResponse] = set()
         self.viewpoint = {"azimuth": 0.0}
         self._last_hud: dict | None = None
+        # optional async callbacks wired by the character (absent in demo mode)
+        self.get_devices = None
+        self.set_devices = None
 
     async def start(self) -> None:
         app = web.Application()
         app.router.add_get("/ws", self._ws_handler)
+        app.router.add_get("/devices", self._devices_get)
+        app.router.add_post("/devices", self._devices_post)
         app.router.add_get("/", self._index)
         app.router.add_static("/assets/", ROOT / "robot" / "assets")
         app.router.add_static("/", ROOT / "viewer")
@@ -55,6 +60,17 @@ class BodyServer:
 
     async def _index(self, _req: web.Request) -> web.FileResponse:
         return web.FileResponse(ROOT / "viewer" / "index.html")
+
+    async def _devices_get(self, _req: web.Request) -> web.Response:
+        if not self.get_devices:
+            return web.json_response({"error": "not available in demo mode"}, status=503)
+        return web.json_response(await self.get_devices())
+
+    async def _devices_post(self, req: web.Request) -> web.Response:
+        if not self.set_devices:
+            return web.json_response({"error": "not available in demo mode"}, status=503)
+        await self.set_devices(await req.json())
+        return web.json_response({"ok": True})
 
     async def _ws_handler(self, request: web.Request) -> web.WebSocketResponse:
         ws = web.WebSocketResponse()
