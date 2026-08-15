@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Lamp Character — Body Viewer</title>
+  <style>
+    html, body { margin: 0; height: 100%; overflow: hidden; background: #0b0d12;
+                 font-family: -apple-system, "Segoe UI", Ubuntu, sans-serif; }
+    #scene { width: 100%; height: 100%; display: block; }
+    .hud { position: absolute; color: #e8eaf0; user-select: none; }
+    #state-badge {
+      top: 16px; left: 16px; padding: 6px 14px; border-radius: 999px;
+      background: rgba(20, 24, 34, 0.8); border: 1px solid rgba(255,255,255,0.12);
+      font-size: 13px; letter-spacing: 0.12em; text-transform: uppercase;
+    }
+    #state-badge .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+      background: #5b6270; margin-right: 8px; transition: background 0.3s; }
+    #state-badge.live .dot { background: #ffd76e; box-shadow: 0 0 8px #ffd76e; }
+    #caption {
+      bottom: 40px; left: 50%; transform: translateX(-50%);
+      max-width: 70%; padding: 10px 18px; border-radius: 12px;
+      background: rgba(20, 24, 34, 0.85); border: 1px solid rgba(255,255,255,0.1);
+      font-size: 17px; line-height: 1.4; text-align: center;
+      opacity: 0; transition: opacity 0.25s;
+    }
+    #caption.visible { opacity: 1; }
+    #caption .speaker { color: #9aa3b5; font-size: 12px; text-transform: uppercase;
+      letter-spacing: 0.1em; display: block; margin-bottom: 2px; }
+    #conn { bottom: 14px; right: 16px; font-size: 12px; color: #5b6270; }
+  </style>
+</head>
+<body>
+  <canvas id="scene"></canvas>
+  <div id="state-badge" class="hud"><span class="dot"></span><span id="state-text">connecting</span></div>
+  <div id="caption" class="hud"><span class="speaker" id="caption-speaker"></span><span id="caption-text"></span></div>
+  <div id="conn" class="hud">offline</div>
+  <script type="importmap">
+    { "imports": { "three": "./vendor/three.module.js" } }
+  </script>
+  <script type="module" src="./app.js"></script>
+</body>
+</html>
