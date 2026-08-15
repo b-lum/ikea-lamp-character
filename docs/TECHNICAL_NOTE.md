@@ -99,6 +99,12 @@ dependencies, so the system runs fully offline except Anthropic API calls.
 
 Latencies are recorded live to `metrics.json` by the built-in instrumentation.
 
+## Timebox
+
+About 7 hours across two days, AI-assisted throughout (architecture, behavior
+design, measurements, and code decisions are my own; see "intentionally left
+out" below for the scope cuts that kept it inside the box).
+
 ## Known limitations / intentionally left out
 
 - Aiming uses a fixed camera→joint mapping (laptop camera ≈ lamp's forward
