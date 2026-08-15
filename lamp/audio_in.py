@@ -40,6 +40,8 @@ class Hearing:
         self.is_self_speaking = is_self_speaking
         self.enabled = False       # behavior engine opens/closes the ears
         self.device = device       # None = system default
+        self.level = 0.0           # live mic level (0-1, floor-relative) for the UI meter
+        self.speech = False        # True while an utterance is being captured
         self.last_stt_latency = 0.0
         self._blocks: deque[np.ndarray] = deque()
         self._cv = threading.Condition()
@@ -112,6 +114,8 @@ class Hearing:
                 block = self._blocks.popleft()
             rms = float(np.sqrt(np.mean(block ** 2)))
             block_s = len(block) / SR
+            self.level = max(0.0, min(1.0, (rms - noise_floor) / (noise_floor * 6 + 1e-6)))
+            self.speech = in_speech
 
             if not in_speech:
                 # only adapt the floor to non-speech audio

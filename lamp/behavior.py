@@ -152,7 +152,7 @@ class Character:
                                 pulse_hz=0, pulse_depth=0)
         await asyncio.sleep(duration * 0.7)
         self.animator.gaze_enabled = True
-        self.audio.set_music(True, 0.55)
+        self.audio.set_music(True, 0.3)
         self.animator.play("greet")
         await self._speak("Oh, hello! I'm Lux.")
         self.hearing.enabled = True
@@ -230,8 +230,10 @@ class Character:
                 jpeg = self.perception.annotated_jpeg()
                 if jpeg:
                     self.server.broadcast({"type": "camera",
-                                           "data": base64.standard_b64encode(jpeg).decode()})
-            await asyncio.sleep(0.2)
+                                           "data": base64.standard_b64encode(jpeg).decode(),
+                                           "mic_level": round(self.hearing.level, 3),
+                                           "speech": self.hearing.speech})
+            await asyncio.sleep(0.15)
 
     async def _metrics_task(self) -> None:
         while True:

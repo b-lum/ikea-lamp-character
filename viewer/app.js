@@ -332,6 +332,30 @@ function sendViewpoint() {
   sock.send(JSON.stringify({ type: 'viewpoint', azimuth }));
 }
 
+// ---------- mic waveform (under the camera PiP) ----------
+const waveCanvas = document.getElementById('mic-wave');
+const waveCtx = waveCanvas.getContext('2d');
+let micLevel = 0, micTarget = 0, micSpeech = false;
+
+function drawMicWave(now) {
+  const w = waveCanvas.width, h = waveCanvas.height;
+  micLevel += (micTarget - micLevel) * 0.15;
+  waveCtx.clearRect(0, 0, w, h);
+  waveCtx.beginPath();
+  for (let x = 0; x <= w; x++) {
+    const u = x / w;
+    const freq = 0.38 - 0.30 * u;                    // high freq left -> low right
+    const taper = 0.55 + 0.45 * Math.sin(u * Math.PI); // pin the ends down
+    const amp = (1.2 + micLevel * 13) * taper;
+    let y = h / 2 + Math.sin(now * 0.012 + x * freq) * amp;
+    if (micSpeech) y += (Math.random() - 0.5) * micLevel * 7; // speech distortion
+    x ? waveCtx.lineTo(x, y) : waveCtx.moveTo(x, y);
+  }
+  waveCtx.strokeStyle = micSpeech ? '#ffd76e' : 'rgba(154,163,181,0.85)';
+  waveCtx.lineWidth = 1.5;
+  waveCtx.stroke();
+}
+
 const _q = new THREE.Quaternion();
 let lastT = performance.now();
 function animate() {
@@ -371,6 +395,7 @@ function animate() {
   }
   controls.update();
   sendViewpoint();
+  drawMicWave(now);
   renderer.render(scene, camera);
 }
 animate();
@@ -468,6 +493,8 @@ function connect() {
     else if (msg.type === 'camera') {
       document.getElementById('pip').style.display = 'block';
       document.getElementById('pip-img').src = `data:image/jpeg;base64,${msg.data}`;
+      micTarget = msg.mic_level ?? 0;
+      micSpeech = !!msg.speech;
     }
   };
   ws.onclose = () => { conn.textContent = 'offline — retrying'; setTimeout(connect, 1000); };
