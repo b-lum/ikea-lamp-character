@@ -162,7 +162,7 @@ class Animator:
         return bool(self._timeline)
 
     def set_gaze(self, yaw: float, pitch: float) -> None:
-        self._gaze_target = (yaw, pitch)
+        self._gaze_target = (float(yaw), float(pitch))
 
     def set_light(self, color=None, intensity=None, pulse_hz=None, pulse_depth=None):
         if color is not None: self.light.color = tuple(color)

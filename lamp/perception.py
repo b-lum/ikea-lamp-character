@@ -108,7 +108,7 @@ class Perception:
             close = best is not None and best[2] / FRAME_W >= MIN_FACE_FRAC
 
             if close:
-                x, y, w, h = best[:4]
+                x, y, w, h = (float(v) for v in best[:4])  # numpy -> plain floats
                 cx, cy = (x + w / 2) / FRAME_W, (y + h / 2) / FRAME_H
                 self.state.face_x = cx * 2 - 1
                 self.state.face_y = cy * 2 - 1
