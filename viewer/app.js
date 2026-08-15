@@ -70,6 +70,9 @@ function eulerFromRPY(rpy) {
 
 // Visual theme ("industrial black / exposed Edison bulb"). Purely a viewer
 // concern keyed off URDF material names — the robot model itself is untouched.
+const POLE_SCALE = 0.7;                    // slim the arm poles
+const POLE_R = 0.025 * POLE_SCALE;         // resulting pole radius
+const JOINT_R = POLE_R * 1.15;             // joints 15% thicker than poles
 const THEME = {
   fixture_white:  { color: 0x17181c, roughness: 0.6,  metalness: 0.25 }, // matte black body
   fixture_chrome: { color: 0x24262c, roughness: 0.3,  metalness: 0.8  }, // gunmetal joints
@@ -130,11 +133,59 @@ function buildBulb() {
   return g;
 }
 
+let _woodTex;
+function woodTexture() {
+  if (_woodTex) return _woodTex;
+  const c = document.createElement('canvas');
+  c.width = c.height = 512;
+  const g = c.getContext('2d');
+  g.fillStyle = '#4a3120'; // dark hazel base tone
+  g.fillRect(0, 0, 512, 512);
+  const shades = ['#3a2517', '#5c3e26', '#6b4a2e', '#43301e', '#7a5636'];
+  for (let i = 0; i < 170; i++) {
+    g.globalAlpha = 0.1 + Math.random() * 0.25;
+    g.fillStyle = shades[i % shades.length];
+    g.fillRect(Math.random() * 512, 0, 1 + Math.random() * 4, 512);
+  }
+  g.globalAlpha = 1;
+  _woodTex = new THREE.CanvasTexture(c);
+  _woodTex.wrapS = _woodTex.wrapT = THREE.RepeatWrapping;
+  _woodTex.colorSpace = THREE.SRGBColorSpace;
+  return _woodTex;
+}
+
+function buildWoodBase(v) {
+  // 3/4-height polished dark-hazel wood base, bottom kept on the ground.
+  // The URDF's turntable joint stays at its original height, so a slim stem
+  // bridges the gap up to the shoulder hinge (cosmetic only).
+  const wrapper = new THREE.Group();
+  const h = v.length * 0.75;
+  wrapper.position.set(0, 0, h / 2);
+  const wood = new THREE.MeshPhysicalMaterial({
+    map: woodTexture(), roughness: 0.32, metalness: 0,
+    clearcoat: 0.8, clearcoatRoughness: 0.2,
+  });
+  const base = new THREE.Mesh(new THREE.CylinderGeometry(v.radius, v.radius, h, 64), wood);
+  base.rotation.x = Math.PI / 2;
+  base.castShadow = true;
+  const stem = new THREE.Mesh(
+    new THREE.CylinderGeometry(POLE_R * 0.8, POLE_R * 1.1, 0.115 - h, 32),
+    new THREE.MeshStandardMaterial({ color: 0x17181c, roughness: 0.6, metalness: 0.25 })
+  );
+  stem.rotation.x = Math.PI / 2;
+  stem.position.set(0, 0, (0.115 + h) / 2 - h / 2); // spans base top -> shoulder hinge
+  stem.castShadow = true;
+  wrapper.add(base, stem);
+  return wrapper;
+}
+
 function buildVisual(v, linkName) {
   // Exposed-bulb styling: drop the shade mesh and its inner light disc, and
   // render the emitter marker as a full Edison bulb. Viewer-only decisions —
   // the URDF still describes the same robot.
   if (linkName === 'lamp_head_link' && (v.shape === 'mesh' || v.material === 'fixture_light')) return null;
+  if (linkName === 'camera_link') return null; // camera marker nub, exposed once the shade went
+  if (linkName === 'base_link') return buildWoodBase(v);
 
   const wrapper = new THREE.Group();
   wrapper.position.fromArray(v.origin_xyz);
@@ -146,10 +197,18 @@ function buildVisual(v, linkName) {
     return wrapper;
   }
   const material = makeMaterial(v);
-  const radius = v.material === 'fixture_chrome' ? v.radius * 0.7 : v.radius; // slimmer joints
+  let radius = v.radius;
+  let length = v.length;
+  if (v.material === 'fixture_white' && v.shape === 'cylinder') radius *= POLE_SCALE;
+  if (v.material === 'fixture_chrome') {
+    radius = v.shape === 'cylinder' ? JOINT_R : v.radius * 0.55;
+    // hinge axles lie perpendicular to the arm; trim them to just clear the pole
+    const lying = v.origin_rpy[0] !== 0 || v.origin_rpy[1] !== 0;
+    if (v.shape === 'cylinder' && lying && length > 0.05) length = 0.048;
+  }
   let mesh;
   if (v.shape === 'cylinder') {
-    mesh = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius, v.length, 40), material);
+    mesh = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius, length, 40), material);
     mesh.rotation.x = Math.PI / 2; // URDF cylinder axis Z, three's is Y
   } else if (v.shape === 'sphere') {
     mesh = new THREE.Mesh(new THREE.SphereGeometry(radius, 32, 24), material);
