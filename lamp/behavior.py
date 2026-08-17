@@ -101,7 +101,7 @@ class Character:
     async def _speak(self, text: str) -> None:
         if not text:
             return
-        self._hud(caption=text, speaker="lux")
+        self._hud(caption=text, speaker="ikea lamp")
         t0 = time.monotonic()
         await asyncio.get_event_loop().run_in_executor(None, self.audio.speak, text)
         self.metrics.record("tts_duration", time.monotonic() - t0)
@@ -154,7 +154,7 @@ class Character:
         self.animator.gaze_enabled = True
         self.audio.set_music(True, 0.3)
         self.animator.play("greet")
-        await self._speak("Oh, hello! I'm Lux.")
+        await self._speak("Oh, hello! I'm Ikea Lamp.")
         self.hearing.enabled = True
         self._hud(state="listening")
 
@@ -224,7 +224,7 @@ class Character:
             await asyncio.sleep(0.1)
 
     async def _camera_pip_task(self) -> None:
-        """Stream a small annotated webcam view so 'what Lux sees' is visible."""
+        """Stream a small annotated webcam view so 'what Ikea Lamp sees' is visible."""
         import base64
         while True:
             if self.server.clients:

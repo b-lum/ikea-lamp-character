@@ -1,7 +1,7 @@
-# Lux — a live lamp robot character
+# Ikea Lamp — a live lamp robot character
 
 A 5-DOF desk-lamp robot character built for the Live Character Robot Software
-Challenge. Lux sees through the laptop camera, listens through the microphone,
+Challenge. Ikea Lamp sees through the laptop camera, listens through the microphone,
 speaks through the speaker, and performs with motion, light, chirps, and music
 in a browser-rendered 3D body driven over WebSocket.
 
@@ -19,7 +19,7 @@ diagram, design decisions, and measurements.
   and recalled later ("where was my mug?").
 - **Goal-directed action** — "point your light at the bottle": Claude locates
   the target in the camera image, the controller aims the head, and a fresh
-  snapshot verifies the aim before Lux declares success.
+  snapshot verifies the aim before Ikea Lamp declares success.
 
 ## Setup — Ubuntu 24.04 (target environment)
 

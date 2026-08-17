@@ -1,4 +1,4 @@
-# Technical note — Lux, a live lamp character
+# Technical note — Ikea Lamp, a live lamp character
 
 ## Architecture and data flow
 
